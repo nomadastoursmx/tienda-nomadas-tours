@@ -171,6 +171,7 @@ hr{border:none;border-top:1px solid var(--border);margin:10px 0;}
       <div class="nav-item" onclick="navigate('clientes')"><span class="nav-icon">👥</span> Clientes</div>
       <div class="nav-item" onclick="navigate('abonos')"><span class="nav-icon">💳</span> Abonos / Créditos</div>
       <div class="nav-item" onclick="navigate('historial')"><span class="nav-icon">📋</span> Historial</div>
+      <div class="nav-item admin-only" onclick="navigate('graficas')"><span class="nav-icon">📈</span> Gráficas</div>
       <div class="nav-item admin-only" onclick="navigate('config')"><span class="nav-icon">⚙️</span> Configuración</div>
     </div>
     <div class="sidebar-footer"><div style="cursor:pointer;font-size:12px;color:rgba(255,255,255,0.4);" onclick="logout()">🔒 Cerrar sesión</div></div>
@@ -340,6 +341,73 @@ hr{border:none;border-top:1px solid var(--border);margin:10px 0;}
           <input type="date" class="form-control" id="histDateTo" style="width:148px;" onchange="renderHistory()">
         </div>
         <div class="card"><div class="card-header"><div class="card-title">Movimientos</div></div><div id="historyList"></div></div>
+      </div>
+
+      <!-- GRÁFICAS -->
+      <div class="section" id="section-graficas">
+        <!-- Filtros -->
+        <div class="card" style="margin-bottom:14px;padding:12px 16px;">
+          <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;">
+            <div>
+              <label class="form-label" style="margin-bottom:2px;">Desde</label>
+              <input type="date" class="form-control" id="grafDesde" style="width:148px;" onchange="renderGraficas()">
+            </div>
+            <div>
+              <label class="form-label" style="margin-bottom:2px;">Hasta</label>
+              <input type="date" class="form-control" id="grafHasta" style="width:148px;" onchange="renderGraficas()">
+            </div>
+            <div>
+              <label class="form-label" style="margin-bottom:2px;">Agrupación</label>
+              <select class="form-control" id="grafAgrup" style="width:130px;" onchange="renderGraficas()">
+                <option value="dia">Por día</option>
+                <option value="semana">Por semana</option>
+                <option value="mes" selected>Por mes</option>
+              </select>
+            </div>
+            <div style="margin-top:14px;">
+              <button class="btn btn-outline btn-sm" onclick="grafSetRango(30)">30 días</button>
+              <button class="btn btn-outline btn-sm" onclick="grafSetRango(90)">90 días</button>
+              <button class="btn btn-outline btn-sm" onclick="grafSetRango(365)">1 año</button>
+            </div>
+          </div>
+        </div>
+        <!-- Grid gráficas -->
+        <div class="grid grid-2" style="margin-bottom:14px;">
+          <div class="card">
+            <div class="card-header"><div class="card-title">💰 Ingresos por período</div></div>
+            <canvas id="chartIngresos" height="220"></canvas>
+            <div id="analisisIngresos" style="margin-top:10px;padding:8px;background:var(--accent-pale);border-radius:var(--radius);font-size:12px;color:var(--primary-dark);"></div>
+          </div>
+          <div class="card">
+            <div class="card-header"><div class="card-title">📊 Ventas por método de pago</div></div>
+            <canvas id="chartMetodos" height="220"></canvas>
+            <div id="analisisMetodos" style="margin-top:10px;padding:8px;background:var(--accent-pale);border-radius:var(--radius);font-size:12px;color:var(--primary-dark);"></div>
+          </div>
+        </div>
+        <div class="grid grid-2" style="margin-bottom:14px;">
+          <div class="card">
+            <div class="card-header"><div class="card-title">✈️ Ingresos por viaje</div></div>
+            <canvas id="chartViajes" height="220"></canvas>
+            <div id="analisisViajes" style="margin-top:10px;padding:8px;background:var(--accent-pale);border-radius:var(--radius);font-size:12px;color:var(--primary-dark);"></div>
+          </div>
+          <div class="card">
+            <div class="card-header"><div class="card-title">💳 Estado de cobros</div></div>
+            <canvas id="chartCobros" height="220"></canvas>
+            <div id="analisisCobros" style="margin-top:10px;padding:8px;background:var(--accent-pale);border-radius:var(--radius);font-size:12px;color:var(--primary-dark);"></div>
+          </div>
+        </div>
+        <div class="grid grid-2" style="margin-bottom:14px;">
+          <div class="card">
+            <div class="card-header"><div class="card-title">📦 Top 10 productos más vendidos</div></div>
+            <canvas id="chartProductos" height="220"></canvas>
+            <div id="analisisProductos" style="margin-top:10px;padding:8px;background:var(--accent-pale);border-radius:var(--radius);font-size:12px;color:var(--primary-dark);"></div>
+          </div>
+          <div class="card">
+            <div class="card-header"><div class="card-title">👥 Clientes con mayor gasto</div></div>
+            <canvas id="chartClientes" height="220"></canvas>
+            <div id="analisisClientes" style="margin-top:10px;padding:8px;background:var(--accent-pale);border-radius:var(--radius);font-size:12px;color:var(--primary-dark);"></div>
+          </div>
+        </div>
       </div>
 
       <!-- CONFIG -->
@@ -536,7 +604,8 @@ hr{border:none;border-top:1px solid var(--border);margin:10px 0;}
 <script>
 const DB_KEY='nomadas_v4b';
 let db={users:[{id:'admin1',name:'Admin',role:'admin',pin:'1234',active:true}],trips:[],products:[],clients:[],sales:[],history:[],equipo:[],payments:[{id:'eff',name:'Efectivo',commission:0,active:true},{id:'tdeb',name:'Tarjeta débito',commission:0,active:true},{id:'tcred',name:'Tarjeta crédito',commission:3,active:true},{id:'transfer',name:'Transferencia',commission:0,active:true},{id:'mp',name:'Mercado Pago',commission:3.49,active:true}],categories:['Café','Alimentos','Bebidas','Artesanías','Souvenirs','Ropa','Accesorios','Otro'],config:{name:'Nómadas Tours',wa:'',ig:'',clabe:'',minStock:5,cajaInicial:500},caja:{fondo:500,ventas:0}};
-function loadDB(){const s=localStorage.getItem(DB_KEY);if(s){try{const p=JSON.parse(s);db={...db,...p};}catch(e){}}}
+function loadDB(){const s=localStorage.getItem(DB_KEY);if(s){try{const p=JSON.parse(s);// Deep merge: replace arrays/objects fully from saved data, keep defaults for missing keys
+Object.keys(p).forEach(k=>{db[k]=p[k];});}catch(e){console.error('Error cargando DB',e);}}}
 function saveDB(){localStorage.setItem(DB_KEY,JSON.stringify(db));}
 function genId(){return Date.now().toString(36)+Math.random().toString(36).slice(2,5);}
 function addHistory(type,desc){db.history.unshift({id:genId(),type,desc,ts:new Date().toISOString(),user:currentUser?.name||'Sistema'});if(db.history.length>2000)db.history=db.history.slice(0,2000);saveDB();}
@@ -546,10 +615,16 @@ let currentUser=null,loginPinStr='',newUserPinStr='';
 
 document.addEventListener('keydown',e=>{
   const ls=document.getElementById('loginScreen');
-  if(ls.style.display!=='none'&&ls.style.display!==''){
-    if(e.key>='0'&&e.key<='9'){lp(e.key);e.preventDefault();}
-    else if(e.key==='Backspace'){lp('del');e.preventDefault();}
-    else if(e.key==='Enter'){lp('ok');e.preventDefault();}
+  const loginVisible=ls&&getComputedStyle(ls).display!=='none';
+  if(loginVisible){
+    // Teclado normal (fila superior) + teclado numérico lateral
+    const isNormal=e.key>='0'&&e.key<='9'&&!e.ctrlKey&&!e.altKey&&!e.metaKey;
+    const numpadDigits={'Numpad0':'0','Numpad1':'1','Numpad2':'2','Numpad3':'3','Numpad4':'4','Numpad5':'5','Numpad6':'6','Numpad7':'7','Numpad8':'8','Numpad9':'9'};
+    const fromNumpad=numpadDigits[e.code];
+    if(isNormal){lp(e.key);e.preventDefault();}
+    else if(fromNumpad){lp(fromNumpad);e.preventDefault();}
+    else if(e.key==='Backspace'||e.code==='NumpadDecimal'){lp('del');e.preventDefault();}
+    else if(e.key==='Enter'||e.code==='NumpadEnter'){lp('ok');e.preventDefault();}
   }
 });
 document.addEventListener('click',e=>{const dd=document.getElementById('payDropdownMenu');if(dd&&dd.classList.contains('open')&&!e.target.closest('#payDropdown'))dd.classList.remove('open');});
@@ -564,19 +639,19 @@ function logout(){currentUser=null;loginPinStr='';document.getElementById('login
 function initApp(){document.getElementById('sidebarName').textContent=currentUser.name;document.getElementById('sidebarRole').textContent=currentUser.role==='admin'?'Administrador':'Cajero';document.getElementById('sidebarAvatar').textContent=currentUser.name.slice(0,2).toUpperCase();document.querySelectorAll('.admin-only').forEach(el=>{el.style.display=currentUser.role==='admin'?'flex':'none';});navigate('dashboard');}
 
 function navigate(section){
-  if(section==='config'&&currentUser?.role!=='admin'){toast('Solo administradores','error');return;}
+  if((section==='config'||section==='graficas')&&currentUser?.role!=='admin'){toast('Solo administradores','error');return;}
   document.querySelectorAll('.section').forEach(s=>s.classList.remove('active'));
   document.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('active'));
   const el=document.getElementById('section-'+section);if(!el)return;
   el.classList.add('active');
-  const map={dashboard:'Dashboard',viajes:'Viajes',pos:'Punto de Venta',inventario:'Inventario Tienda',inventario_nomadas:'Inventario Nómadas',clientes:'Clientes',abonos:'Abonos / Créditos',historial:'Historial',config:'Configuración'};
+  const map={dashboard:'Dashboard',viajes:'Viajes',pos:'Punto de Venta',inventario:'Inventario Tienda',inventario_nomadas:'Inventario Nómadas',clientes:'Clientes',abonos:'Abonos / Créditos',historial:'Historial',graficas:'Gráficas',config:'Configuración'};
   document.getElementById('topbarTitle').textContent=map[section]||section;
-  document.querySelectorAll('.nav-item').forEach(n=>{const t=n.textContent.toLowerCase().trim();if((section==='pos'&&t.includes('venta'))||(section==='inventario_nomadas'&&t.includes('nómadas'))||(section==='inventario'&&t.includes('tienda'))||(section==='abonos'&&t.includes('abono'))||t.includes(section.replace('_',' ')))n.classList.add('active');});
+  document.querySelectorAll('.nav-item').forEach(n=>{const t=n.textContent.toLowerCase().trim();if((section==='pos'&&t.includes('venta'))||(section==='inventario_nomadas'&&t.includes('nómadas'))||(section==='inventario'&&t.includes('tienda'))||(section==='abonos'&&t.includes('abono'))||(section==='graficas'&&t.includes('gráfica'))||t.includes(section.replace('_',' ')))n.classList.add('active');});
   setTopbarActions(section);
-  const r={dashboard:renderDashboard,viajes:renderTrips,pos:renderPOS,inventario:renderInventory,inventario_nomadas:renderEquipo,abonos:renderAbonos,clientes:renderClients,historial:renderHistory,config:renderConfig};
+  const r={dashboard:renderDashboard,viajes:renderTrips,pos:renderPOS,inventario:renderInventory,inventario_nomadas:renderEquipo,abonos:renderAbonos,clientes:renderClients,historial:renderHistory,graficas:()=>{grafSetRango(90);},config:renderConfig};
   if(r[section])r[section]();
 }
-function setTopbarActions(s){const el=document.getElementById('topbarActions');const a={viajes:`<button class="btn btn-primary btn-sm" onclick="openTripModal()">+ Nuevo viaje</button>`,inventario:currentUser?.role==='admin'?`<button class="btn btn-primary btn-sm" onclick="openProductModal()">+ Producto</button>`:'',inventario_nomadas:`<button class="btn btn-primary btn-sm" onclick="openEquipoModal()">+ Equipo</button>`,clientes:`<button class="btn btn-primary btn-sm" onclick="openClientModal()">+ Cliente</button>`,pos:`<button class="btn btn-outline btn-sm" onclick="showCajaCorte()">💰 Corte de caja</button>`};el.innerHTML=a[s]||'';}
+function setTopbarActions(s){const el=document.getElementById('topbarActions');const isAdmin=currentUser?.role==='admin';const a={viajes:isAdmin?`<button class="btn btn-primary btn-sm" onclick="openTripModal()">+ Nuevo viaje</button>`:'',inventario:`<button class="btn btn-primary btn-sm" onclick="openProductModal()">+ Producto</button>`,inventario_nomadas:`<button class="btn btn-primary btn-sm" onclick="openEquipoModal()">+ Equipo</button>`,clientes:`<button class="btn btn-primary btn-sm" onclick="openClientModal()">+ Cliente</button>`,pos:`<button class="btn btn-outline btn-sm" onclick="showCajaCorte()">💰 Corte de caja</button>`,graficas:isAdmin?`<button class="btn btn-outline btn-sm" onclick="exportGraficasCSV()">⬇ CSV</button>`:''};el.innerHTML=a[s]||'';}
 function openModal(id){document.getElementById(id).classList.add('open');}
 function closeModal(id){document.getElementById(id).classList.remove('open');}
 document.querySelectorAll('.modal-overlay').forEach(m=>{m.addEventListener('click',e=>{if(e.target===m)m.classList.remove('open');});});
@@ -600,17 +675,144 @@ function renderDashboard(){
 // TRIPS
 let editingTripId=null;
 function openTripModal(id=null){editingTripId=id;const t=id?db.trips.find(x=>x.id===id):null;document.getElementById('tripModalTitle').textContent=id?'Editar viaje':'Nuevo viaje';document.getElementById('tripName').value=t?.name||'';document.getElementById('tripPrice').value=t?.price||'';document.getElementById('tripDate').value=t?.date||'';document.getElementById('tripDateReturn').value=t?.dateReturn||'';document.getElementById('tripDesc').value=t?.desc||'';document.getElementById('tripIncludes').value=t?.includes||'';document.getElementById('tripRecs').value=t?.recs||'';document.getElementById('tripImg').value=t?.img||'';document.getElementById('tripSlots').value=t?.slots||20;document.getElementById('tripStatus').value=t?.status||'activo';openModal('tripModal');}
-function saveTrip(){const name=document.getElementById('tripName').value.trim();const price=document.getElementById('tripPrice').value;const date=document.getElementById('tripDate').value;if(!name||!price||!date){toast('Nombre, precio y fecha requeridos','error');return;}const trip={id:editingTripId||genId(),name,price,date,dateReturn:document.getElementById('tripDateReturn').value,desc:document.getElementById('tripDesc').value,includes:document.getElementById('tripIncludes').value,recs:document.getElementById('tripRecs').value,img:document.getElementById('tripImg').value,slots:parseInt(document.getElementById('tripSlots').value)||20,status:document.getElementById('tripStatus').value};if(editingTripId){db.trips[db.trips.findIndex(t=>t.id===editingTripId)]=trip;addHistory('config',`Viaje editado: ${name}`);}else{db.trips.unshift(trip);addHistory('config',`Viaje creado: ${name}`);}saveDB();closeModal('tripModal');renderTrips();toast('Viaje guardado','success');}
+function saveTrip(){const name=document.getElementById('tripName').value.trim();const price=document.getElementById('tripPrice').value;const date=document.getElementById('tripDate').value;if(!name||!price||!date){toast('Nombre, precio y fecha requeridos','error');return;}const existing=editingTripId?db.trips.find(t=>t.id===editingTripId):null;const trip={id:editingTripId||genId(),name,price,date,dateReturn:document.getElementById('tripDateReturn').value,desc:document.getElementById('tripDesc').value,includes:document.getElementById('tripIncludes').value,recs:document.getElementById('tripRecs').value,img:document.getElementById('tripImg').value,slots:parseInt(document.getElementById('tripSlots').value)||20,status:document.getElementById('tripStatus').value,passengers:existing?.passengers||[]};if(editingTripId){db.trips[db.trips.findIndex(t=>t.id===editingTripId)]=trip;addHistory('config',`Viaje editado: ${name}`);}else{db.trips.unshift(trip);addHistory('config',`Viaje creado: ${name}`);}saveDB();closeModal('tripModal');renderTrips();toast('Viaje guardado','success');}
 function renderTrips(){const q=(document.getElementById('tripSearch')?.value||'').toLowerCase();const st=document.getElementById('tripStatusFilter')?.value||'';let trips=db.trips.filter(t=>(!q||(t.name+t.desc).toLowerCase().includes(q))&&(!st||t.status===st));const grid=document.getElementById('tripsGrid');const empty=document.getElementById('tripsEmpty');if(!trips.length){grid.innerHTML='';empty.style.display='block';return;}empty.style.display='none';const sb={activo:'badge-success',proximo:'badge-info',completo:'badge-gray'};const sl={activo:'Activo',proximo:'Próximamente',completo:'Completo'};grid.innerHTML=trips.map(t=>`<div class="trip-card" onclick="viewTrip('${t.id}')"><div class="trip-img">${t.img&&t.img.startsWith('http')?`<img src="${t.img}" style="width:100%;height:100%;object-fit:cover;">`:(t.img||'✈️')}</div><div class="trip-body"><div class="trip-name">${t.name}</div><div class="trip-date">📅 ${t.date}${t.dateReturn?' → '+t.dateReturn:''}</div><div class="trip-price">${fmt(t.price)}</div><div style="display:flex;gap:5px;flex-wrap:wrap;margin-top:5px;"><span class="badge ${sb[t.status]||'badge-gray'}">${sl[t.status]||t.status}</span><span class="badge badge-gray">👤 ${t.slots}</span></div>${currentUser?.role==='admin'?`<div style="display:flex;gap:4px;margin-top:7px;" onclick="event.stopPropagation()"><button class="btn btn-outline btn-xs" onclick="openTripModal('${t.id}')">✏️</button><button class="btn btn-danger btn-xs" onclick="deleteTrip('${t.id}')">🗑</button></div>`:''}</div></div>`).join('');}
-function viewTrip(id){const t=db.trips.find(x=>x.id===id);if(!t)return;const cfg=db.config;document.getElementById('tripDetailContent').innerHTML=`<div class="modal-header"><div class="modal-title">${t.name}</div><button class="modal-close" onclick="closeModal('tripDetailModal')">×</button></div><div style="font-size:32px;text-align:center;margin-bottom:8px;">${t.img&&!t.img.startsWith('http')?t.img:'✈️'}</div><div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px;"><span class="badge badge-success">${fmt(t.price)}</span><span class="badge badge-info">📅 ${t.date}${t.dateReturn?' → '+t.dateReturn:''}</span><span class="badge badge-gray">👤 ${t.slots} cupos</span></div>${t.desc?`<p style="font-size:13px;color:var(--text2);margin-bottom:8px;">${t.desc}</p>`:''}${t.includes?`<div style="margin-bottom:8px;"><div style="font-size:10px;text-transform:uppercase;color:var(--text3);margin-bottom:3px;">Incluye</div><div style="font-size:13px;">${t.includes}</div></div>`:''}${t.recs?`<div style="margin-bottom:8px;"><div style="font-size:10px;text-transform:uppercase;color:var(--text3);margin-bottom:3px;">Recomendaciones</div><div style="font-size:13px;">${t.recs}</div></div>`:''}${cfg.clabe?`<div class="alert alert-info" style="margin-top:8px;">💳 Cuenta: <strong>${cfg.clabe}</strong></div>`:''}<div class="modal-footer"><button class="btn btn-outline" onclick="closeModal('tripDetailModal')">Cerrar</button>${cfg.wa?`<button class="btn btn-success" onclick="shareWA('${id}')">📱 WhatsApp</button>`:''}${cfg.ig?`<button class="btn btn-outline" onclick="shareIG('${id}')">📸 Instagram</button>`:''}</div>`;openModal('tripDetailModal');}
+function esc(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');}
+
+function viewTrip(id){
+  const t=db.trips.find(x=>x.id===id);if(!t)return;
+  const cfg=db.config;
+  const pass=t.passengers||[];
+  const passCount=pass.length;
+  const isAdmin=currentUser?.role==='admin';
+
+  let passengerRows='';
+  pass.forEach((p,i)=>{
+    const sale=db.sales.find(s=>s.id===p.saleId);
+    const pend=sale?sale.pending:0;
+    const isLiq=pend<0.01;
+    passengerRows+=`<div style="display:flex;align-items:center;gap:8px;padding:7px 0;border-bottom:1px solid var(--border);flex-wrap:wrap;">
+      <div style="width:24px;height:24px;border-radius:50%;background:var(--accent-pale);display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:600;color:var(--primary);flex-shrink:0;">${i+1}</div>
+      <div style="flex:1;min-width:0;">
+        <div style="font-size:12px;font-weight:500;">${esc(p.name)}</div>
+        ${p.phone?`<div style="font-size:10px;color:var(--text3);">📱 ${esc(p.phone)}</div>`:''}
+      </div>
+      <span class="badge ${isLiq?'badge-success':'badge-warning'}" style="font-size:10px;flex-shrink:0;">${isLiq?'✓ Pagado':'Pend: '+fmt(pend)}</span>
+      ${p.phone?`<button onclick="sendRecordatorioWA('${esc(id)}','${esc(p.saleId||'')}','${esc(p.phone)}','${esc(p.name)}')" style="padding:3px 7px;font-size:10px;background:var(--success);color:#fff;border:none;border-radius:6px;cursor:pointer;flex-shrink:0;">📱</button>`:''}
+      ${isAdmin?`<button onclick="deletePassenger('${esc(id)}','${esc(p.id)}')" style="padding:3px 6px;font-size:11px;background:none;border:1px solid var(--danger);color:var(--danger);border-radius:6px;cursor:pointer;flex-shrink:0;" title="Eliminar pasajero">🗑</button>`:''}
+    </div>`;
+  });
+
+  const passengerHTML=passCount>0
+    ?`<div style="margin-bottom:10px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+          <div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.8px;color:var(--text3);">👥 Pasajeros (${passCount})</div>
+          ${passCount>1&&cfg.wa?`<button onclick="sendRecordatorioMasivo('${esc(id)}')" style="padding:3px 8px;font-size:10px;background:var(--warning);color:#fff;border:none;border-radius:6px;cursor:pointer;">📣 Recordar a todos</button>`:''}
+        </div>
+        <div style="max-height:240px;overflow-y:auto;">${passengerRows}</div>
+      </div>`
+    :'<div style="font-size:12px;color:var(--text3);margin-bottom:10px;">Sin pasajeros registrados aún.</div>';
+
+  document.getElementById('tripDetailContent').innerHTML=`
+    <div class="modal-header">
+      <div class="modal-title">${esc(t.name)}</div>
+      <button class="modal-close" onclick="closeModal('tripDetailModal')">×</button>
+    </div>
+    <div style="font-size:32px;text-align:center;margin-bottom:8px;">${t.img&&!t.img.startsWith('http')?esc(t.img):'✈️'}</div>
+    <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px;">
+      <span class="badge badge-success">${fmt(t.price)}</span>
+      <span class="badge badge-info">📅 ${esc(t.date)}${t.dateReturn?' → '+esc(t.dateReturn):''}</span>
+      <span class="badge badge-gray">👤 ${t.slots} cupos</span>
+      <span class="badge ${passCount>0?'badge-warning':'badge-gray'}">🧍 ${passCount} inscritos</span>
+    </div>
+    ${t.desc?`<p style="font-size:13px;color:var(--text2);margin-bottom:8px;">${esc(t.desc)}</p>`:''}
+    ${t.includes?`<div style="margin-bottom:8px;"><div style="font-size:10px;text-transform:uppercase;color:var(--text3);margin-bottom:3px;">Incluye</div><div style="font-size:13px;">${esc(t.includes)}</div></div>`:''}
+    ${t.recs?`<div style="margin-bottom:8px;"><div style="font-size:10px;text-transform:uppercase;color:var(--text3);margin-bottom:3px;">Recomendaciones</div><div style="font-size:13px;">${esc(t.recs)}</div></div>`:''}
+    ${passengerHTML}
+    ${cfg.clabe?`<div class="alert alert-info" style="margin-top:8px;">💳 Cuenta: <strong>${esc(cfg.clabe)}</strong></div>`:''}
+    <div class="modal-footer">
+      <button class="btn btn-outline" onclick="closeModal('tripDetailModal')">Cerrar</button>
+      ${cfg.wa?`<button class="btn btn-success" onclick="shareWA('${esc(id)}')">📱 Compartir viaje</button>`:''}
+    </div>`;
+  openModal('tripDetailModal');
+}
+
+function deletePassenger(tripId,passId){
+  if(currentUser?.role!=='admin'){toast('Solo administradores','error');return;}
+  const trip=db.trips.find(t=>t.id===tripId);if(!trip)return;
+  const pass=trip.passengers?.find(p=>p.id===passId);if(!pass)return;
+  if(!confirm(`¿Eliminar a "${pass.name}" del viaje "${trip.name}"?\n\nSu venta en Abonos NO se elimina.`))return;
+  trip.passengers=trip.passengers.filter(p=>p.id!==passId);
+  addHistory('config',`Pasajero eliminado de "${trip.name}": ${pass.name}`);
+  saveDB();
+  // Re-abrir el modal con datos actualizados
+  viewTrip(tripId);
+  toast(`${pass.name} eliminado del viaje`,'success');
+}
 function shareWA(id){const t=db.trips.find(x=>x.id===id);const c=db.config;window.open(`https://wa.me/${c.wa.replace(/\D/g,'')}?text=${encodeURIComponent(`✈️ *${t.name}*\n📅 ${t.date}${t.dateReturn?' → '+t.dateReturn:''}\n💰 ${fmt(t.price)}\n\n${t.desc||''}\n\n✅ Incluye:\n${t.includes||''}\n\n📌 Recomendaciones:\n${t.recs||''}\n\n${c.clabe?'💳 Pago: '+c.clabe:''}`)}`);}
 function shareIG(id){const t=db.trips.find(x=>x.id===id);navigator.clipboard?.writeText(`✈️ ${t.name} | ${fmt(t.price)} | ${t.date}\n${t.desc||''}\n..\n${db.config.ig||'@nomadastours'}`).then(()=>toast('Copiado para Instagram','success'));}
-function deleteTrip(id){if(!confirm('¿Eliminar?'))return;const t=db.trips.find(x=>x.id===id);db.trips=db.trips.filter(x=>x.id!==id);addHistory('config',`Viaje eliminado: ${t?.name}`);saveDB();renderTrips();toast('Eliminado','success');}
+
+// ===== RECORDATORIOS WHATSAPP =====
+function getEstadoCuentaMsg(saleId,clientName,tripName){
+  const sale=db.sales.find(s=>s.id===saleId);
+  const cfg=db.config;
+  if(!sale)return null;
+  const items=sale.items.map(i=>`  • ${i.name} x${i.qty}: ${fmt(i.price*i.qty)}`).join('\n');
+  const hist=(sale.abonoHistory||[]).map(h=>`  ${new Date(h.fecha).toLocaleDateString('es-MX')} — +${fmt(h.monto)} (${h.metodo||'—'})`).join('\n');
+  const msg=`✦ *Estado de Cuenta — Nómadas Tours*
+━━━━━━━━━━━━━━━━━━━━━
+👤 Cliente: *${clientName}*
+✈️ Viaje: *${tripName||'—'}*
+📅 Fecha: ${new Date().toLocaleDateString('es-MX')}
+
+📋 *Detalle de tu compra:*
+${items}
+
+💰 Total: *${fmt(sale.total)}*
+✅ Pagado: *${fmt(sale.paid)}*
+${sale.pending>0.01?`⚠️ Pendiente: *${fmt(sale.pending)}*\n`:''}${sale.pending<0.01?`✅ ¡Tu cuenta está *liquidada*! 🎉`:`📌 Por favor realiza tu pago antes del viaje.`}
+
+${hist?`📑 *Historial de pagos:*\n${hist}\n`:''}${cfg.clabe?`💳 Transferencia a: *${cfg.clabe}*\n`:''}${cfg.wa?`📞 Contacto: wa.me/${cfg.wa.replace(/\D/g,'')}`:''}
+_Nómadas Tours — ¡Gracias por elegirnos!_ 🌟`;
+  return msg;
+}
+
+function sendRecordatorioWA(tripId,saleId,phone,clientName){
+  const t=db.trips.find(x=>x.id===tripId);
+  const msg=getEstadoCuentaMsg(saleId,clientName,t?.name);
+  if(!msg){toast('No se encontró la venta','error');return;}
+  const wa=phone.replace(/\D/g,'');
+  window.open(`https://wa.me/${wa}?text=${encodeURIComponent(msg)}`);
+}
+
+function sendRecordatorioMasivo(tripId){
+  const t=db.trips.find(x=>x.id===tripId);if(!t||!t.passengers?.length)return;
+  const conPhone=t.passengers.filter(p=>p.phone&&p.saleId);
+  if(!conPhone.length){toast('Ningún pasajero tiene teléfono registrado','warning');return;}
+  // Abrir WA para cada pasajero con un pequeño delay
+  conPhone.forEach((p,i)=>{
+    setTimeout(()=>{
+      const msg=getEstadoCuentaMsg(p.saleId,p.name,t.name);
+      if(msg)window.open(`https://wa.me/${p.phone.replace(/\D/g,'')}?text=${encodeURIComponent(msg)}`);
+    },i*800);
+  });
+  toast(`Enviando recordatorios a ${conPhone.length} pasajero(s)...`,'info');
+}
+function deleteTrip(id){
+  const t=db.trips.find(x=>x.id===id);if(!t)return;
+  const passCount=(t.passengers||[]).length;
+  const msg=passCount>0
+    ?`¿Eliminar el viaje "${t.name}"?\n\n⚠️ Tiene ${passCount} pasajero(s) registrado(s).\nSe eliminarán del viaje, pero sus ventas seguirán en Abonos.`
+    :`¿Eliminar el viaje "${t.name}"?`;
+  if(!confirm(msg))return;
+  db.trips=db.trips.filter(x=>x.id!==id);
+  addHistory('config',`Viaje eliminado: ${t.name}${passCount?` (${passCount} pasajeros afectados)`:''}`);
+  saveDB();renderTrips();toast('Viaje eliminado','success');
+}
 
 // INVENTORY
 let editingProdId=null;
 function openProductModal(id=null){
-  if(currentUser?.role!=='admin'){toast('Solo administradores','error');return;}
   editingProdId=id;const p=id?db.products.find(x=>x.id===id):null;
   document.getElementById('productModalTitle').textContent=id?'Editar producto':'Nuevo producto';
   document.getElementById('prodName').value=p?.name||'';document.getElementById('prodSubcat').value=p?.subcat||'';document.getElementById('prodCost').value=p?.cost||'';document.getElementById('prodPrice').value=p?.price||'';document.getElementById('prodStock').value=p?.stock||0;document.getElementById('prodMinStock').value=p?.minStock||5;document.getElementById('prodUnit').value=p?.unit||'pieza';document.getElementById('prodDesc').value=p?.desc||'';document.getElementById('marginHint').textContent='';
@@ -643,7 +845,7 @@ function saveProduct(){
   if(editingProdId){db.products[db.products.findIndex(p=>p.id===editingProdId)]=prod;addHistory('inventory',`Producto editado: ${name}`);}else{if(db.products.some(p=>p.name.toLowerCase()===name.toLowerCase())){toast('Ya existe ese producto','error');return;}db.products.push(prod);addHistory('inventory',`Producto creado: ${name}`);}
   saveDB();closeModal('productModal');renderInventory();updateInvCatFilter();toast('Producto guardado','success');
 }
-function renderInventory(){const q=(document.getElementById('invSearch')?.value||'').toLowerCase();const cat=document.getElementById('invCatFilter')?.value||'';let prods=db.products.filter(p=>(!q||(p.name+p.cat).toLowerCase().includes(q))&&(!cat||p.cat===cat));const tbody=document.getElementById('invTableBody');const empty=document.getElementById('invEmpty');const low=db.products.filter(p=>p.stock<=p.minStock);document.getElementById('invAlerts').innerHTML=low.length?`<div class="alert alert-warning">⚠️ Stock bajo en: ${low.map(p=>p.name).join(', ')}</div>`:'';if(!prods.length){tbody.innerHTML='';empty.style.display='block';return;}empty.style.display='none';tbody.innerHTML=prods.map(p=>{const margin=p.cost>0?((p.price-p.cost)/p.price*100).toFixed(0)+'%':'—';const mc=p.cost>0&&(p.price-p.cost)/p.price>0.2?'var(--success)':p.cost>0?'var(--warning)':'var(--text3)';const ss=p.stock===0?'<span class="badge badge-danger">Sin stock</span>':p.stock<=p.minStock?'<span class="badge badge-warning">Bajo</span>':'<span class="badge badge-success">OK</span>';return `<tr><td><div style="font-weight:500;font-size:12px;">${p.name}</div><div style="font-size:10px;color:var(--text3);">${p.subcat||''}</div></td><td><span class="badge badge-gray">${p.cat}</span></td><td style="font-size:12px;">${p.cost>0?fmt(p.cost):'—'}</td><td style="font-weight:500;font-size:12px;">${fmt(p.price)}</td><td style="font-size:11px;font-weight:600;color:${mc};">${margin}</td><td><strong>${p.stock}</strong> <span style="font-size:10px;color:var(--text3);">${p.unit||''}</span></td><td>${ss}</td><td>${currentUser?.role==='admin'?`<div style="display:flex;gap:3px;"><button class="btn-icon" onclick="openStockModal('${p.id}')">±</button><button class="btn-icon" onclick="openProductModal('${p.id}')">✏️</button><button class="btn-icon" onclick="deleteProduct('${p.id}')" style="color:var(--danger);">🗑</button></div>`:'—'}</td></tr>`;}).join('');}
+function renderInventory(){const q=(document.getElementById('invSearch')?.value||'').toLowerCase();const cat=document.getElementById('invCatFilter')?.value||'';let prods=db.products.filter(p=>(!q||(p.name+p.cat).toLowerCase().includes(q))&&(!cat||p.cat===cat));const tbody=document.getElementById('invTableBody');const empty=document.getElementById('invEmpty');const low=db.products.filter(p=>p.stock<=p.minStock);document.getElementById('invAlerts').innerHTML=low.length?`<div class="alert alert-warning">⚠️ Stock bajo en: ${low.map(p=>p.name).join(', ')}</div>`:'';if(!prods.length){tbody.innerHTML='';empty.style.display='block';return;}empty.style.display='none';tbody.innerHTML=prods.map(p=>{const margin=p.cost>0?((p.price-p.cost)/p.price*100).toFixed(0)+'%':'—';const mc=p.cost>0&&(p.price-p.cost)/p.price>0.2?'var(--success)':p.cost>0?'var(--warning)':'var(--text3)';const ss=p.stock===0?'<span class="badge badge-danger">Sin stock</span>':p.stock<=p.minStock?'<span class="badge badge-warning">Bajo</span>':'<span class="badge badge-success">OK</span>';return `<tr><td><div style="font-weight:500;font-size:12px;">${p.name}</div><div style="font-size:10px;color:var(--text3);">${p.subcat||''}</div></td><td><span class="badge badge-gray">${p.cat}</span></td><td style="font-size:12px;">${p.cost>0?fmt(p.cost):'—'}</td><td style="font-weight:500;font-size:12px;">${fmt(p.price)}</td><td style="font-size:11px;font-weight:600;color:${mc};">${margin}</td><td><strong>${p.stock}</strong> <span style="font-size:10px;color:var(--text3);">${p.unit||''}</span></td><td>${ss}</td><td><div style="display:flex;gap:3px;">${currentUser?.role==='admin'?`<button class="btn-icon" onclick="openStockModal('${p.id}')">±</button>`:''}${`<button class="btn-icon" onclick="openProductModal('${p.id}')">✏️</button>`}${currentUser?.role==='admin'?`<button class="btn-icon" onclick="deleteProduct('${p.id}')" style="color:var(--danger);">🗑</button>`:''}</div></td></tr>`;}).join('');}
 function openStockModal(id){if(currentUser?.role!=='admin'){toast('Solo administradores','error');return;}const p=db.products.find(x=>x.id===id);document.getElementById('stockProdId').value=id;document.getElementById('stockModalTitle').textContent=`Ajustar: ${p.name} (actual: ${p.stock})`;document.getElementById('stockAmount').value='';document.getElementById('stockReason').value='';openModal('stockModal');}
 function adjustStock(){const id=document.getElementById('stockProdId').value;const amt=parseInt(document.getElementById('stockAmount').value)||0;const reason=document.getElementById('stockReason').value;const p=db.products.find(x=>x.id===id);p.stock=Math.max(0,p.stock+amt);addHistory('inventory',`Stock: ${p.name} (${amt>0?'+':''}${amt}) ${reason?'- '+reason:''}`);saveDB();closeModal('stockModal');renderInventory();toast('Stock actualizado','success');}
 function deleteProduct(id){if(currentUser?.role!=='admin'){toast('Solo administradores','error');return;}if(!confirm('¿Eliminar?'))return;const p=db.products.find(x=>x.id===id);db.products=db.products.filter(x=>x.id!==id);addHistory('inventory',`Eliminado: ${p?.name}`);saveDB();renderInventory();toast('Eliminado','success');}
@@ -720,13 +922,31 @@ function processSale(){
   if(!activePayments.length){toast('Agrega al menos un método de pago','error');return;}
   const total=getTotal();const pagado=getTotalPagado();
   if(pagado<=0){toast('El monto pagado debe ser mayor a cero','error');return;}
-  // El sistema decide automáticamente si es pago completo o abono
   const paid=Math.min(pagado,total);
   const pending=parseFloat((total-paid).toFixed(2));
   const isAbono=pending>0.01;
-  cart.forEach(item=>{if(item.type==='producto'){const p=db.products.find(x=>x.id===item.id);if(p)p.stock=Math.max(0,p.stock-item.qty);}});
+  const saleId=genId();
+  // Registrar pasajeros ANTES de crear la venta para poder asignar saleId correctamente
+  cart.forEach(item=>{
+    if(item.type==='producto'){const p=db.products.find(x=>x.id===item.id);if(p)p.stock=Math.max(0,p.stock-item.qty);}
+    if(item.type==='viaje'){
+      const trip=db.trips.find(t=>t.id===item.id);
+      if(trip){
+        if(!trip.passengers)trip.passengers=[];
+        for(let q=0;q<item.qty;q++){
+          trip.passengers.push({
+            id:genId(),clientId:posClient?.id||null,
+            name:posClient?.name||'Sin nombre',
+            phone:posClient?.phone||'',
+            ts:new Date().toISOString(),
+            saleId  // asignado directamente, no null
+          });
+        }
+      }
+    }
+  });
   const methodSummary=activePayments.map(ap=>{const m=db.payments.find(p=>p.id===ap.methodId);return m?`${m.name} ${fmt(ap.amount)}`:''}).filter(Boolean).join(' + ');
-  const sale={id:genId(),items:[...cart],sub:getSubtotal(),comm:getCommission(),total,paid,pending,isAbono,paymentDetails:activePayments.map(ap=>({...ap})),abonoHistory:[{fecha:new Date().toISOString(),monto:paid,metodo:methodSummary,nota:'Pago inicial'}],methodSummary,clientId:posClient?.id,clientName:posClient?.name||'Sin cliente',ts:new Date().toISOString(),user:currentUser?.name};
+  const sale={id:saleId,items:[...cart],sub:getSubtotal(),comm:getCommission(),total,paid,pending,isAbono,paymentDetails:activePayments.map(ap=>({...ap})),abonoHistory:[{fecha:new Date().toISOString(),monto:paid,metodo:methodSummary,nota:'Pago inicial'}],methodSummary,clientId:posClient?.id,clientName:posClient?.name||'Sin cliente',ts:new Date().toISOString(),user:currentUser?.name};
   db.sales.unshift(sale);
   db.caja=db.caja||{fondo:500,ventas:0};db.caja.ventas=(db.caja.ventas||0)+paid;
   addHistory('sale',`Venta ${posClient?.name||'Sin cliente'}: ${fmt(total)}${isAbono?` (Abono: ${fmt(paid)}, Pendiente: ${fmt(pending)})`:' — Pagado completo'}`);
@@ -754,13 +974,54 @@ function deleteClient(id){if(!confirm('¿Eliminar?'))return;db.clients=db.client
 
 // ABONOS
 let currentAbonoSaleId=null;
-function renderAbonos(){const q=(document.getElementById('abonoSearch')?.value||'').toLowerCase();const f=document.getElementById('abonoFilter')?.value||'';let sales=db.sales.filter(s=>{const mQ=!q||(s.clientName+s.id).toLowerCase().includes(q);const mF=!f||(f==='pendiente'&&s.pending>0)||(f==='liquidado'&&(!s.pending||s.pending<=0));return mQ&&mF;});const tP=db.sales.reduce((a,s)=>a+(s.pending||0),0);const tC=db.sales.reduce((a,s)=>a+(s.paid||0),0);const tV=db.sales.reduce((a,s)=>a+(s.total||0),0);document.getElementById('abonoStats').innerHTML=`<div class="stat-card"><div class="stat-label">Total ventas</div><div class="stat-value">${fmt(tV)}</div></div><div class="stat-card"><div class="stat-label">Total cobrado</div><div class="stat-value" style="color:var(--success);">${fmt(tC)}</div></div><div class="stat-card"><div class="stat-label">Pendiente</div><div class="stat-value" style="color:${tP>0?'var(--warning)':'var(--success)'};">${fmt(tP)}</div></div>`;const el=document.getElementById('abonosList');if(!sales.length){el.innerHTML='<div class="empty-state"><div class="empty-state-icon">💳</div><p>Sin registros</p></div>';return;}el.innerHTML=sales.map(s=>{const pct=Math.min(100,Math.round((s.paid/s.total)*100));const isLiq=!s.pending||s.pending<=0;const hist=(s.abonoHistory||[{fecha:s.ts,monto:s.paid,metodo:s.methodSummary,nota:'Pago inicial'}]);return `<div style="border:1px solid var(--border);border-radius:var(--radius);padding:12px;margin-bottom:8px;background:${isLiq?'#f8fff8':s.pending>0?'#fffbf0':'var(--surface)'}"><div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:7px;flex-wrap:wrap;gap:8px;"><div><div style="font-size:13px;font-weight:600;">${s.clientName||'Sin cliente'}</div><div style="font-size:10px;color:var(--text3);">${s.items?.map(i=>i.name).join(', ').slice(0,60)||'Venta'} · ${new Date(s.ts).toLocaleDateString('es-MX')}</div></div><div style="text-align:right;"><div style="font-size:14px;font-weight:700;color:var(--primary);">${fmt(s.total)}</div><span class="badge ${isLiq?'badge-success':'badge-warning'}">${isLiq?'✓ Liquidado':'Pendiente'}</span></div></div><div class="abono-progress"><div class="abono-progress-bar" style="width:${pct}%;background:${isLiq?'var(--success)':'var(--accent)'}"></div></div><div style="display:flex;justify-content:space-between;font-size:11px;color:var(--text3);margin-top:3px;margin-bottom:8px;"><span>Pagado: <strong style="color:var(--success);">${fmt(s.paid)}</strong></span>${s.pending>0?`<span>Pendiente: <strong style="color:var(--warning);">${fmt(s.pending)}</strong></span>`:''}<span>${pct}%</span></div>${hist.length>0?`<details style="margin-bottom:7px;"><summary style="font-size:11px;color:var(--text3);cursor:pointer;">📋 Historial (${hist.length} pago${hist.length!==1?'s':''})</summary><div style="margin-top:5px;padding:6px;background:var(--surface2);border-radius:6px;">${hist.map(h=>`<div style="display:flex;justify-content:space-between;font-size:11px;padding:3px 0;border-bottom:1px solid var(--border);"><span style="color:var(--text3);">${new Date(h.fecha).toLocaleDateString('es-MX')} · ${h.metodo||'—'}</span><span style="font-weight:600;color:var(--success);">+${fmt(h.monto)}</span></div>`).join('')}</div></details>`:''} ${!isLiq?`<button class="btn btn-success btn-sm" onclick="openPagoAbono('${s.id}')">+ Registrar abono / liquidar</button>`:`<div style="font-size:11px;color:var(--success);">✅ Pagado completo</div>`}</div>`;}).join('');}
+function renderAbonos(){const q=(document.getElementById('abonoSearch')?.value||'').toLowerCase();const f=document.getElementById('abonoFilter')?.value||'';let sales=db.sales.filter(s=>{const mQ=!q||(s.clientName+s.id).toLowerCase().includes(q);const mF=!f||(f==='pendiente'&&s.pending>0)||(f==='liquidado'&&(!s.pending||s.pending<=0));return mQ&&mF;});const tP=db.sales.reduce((a,s)=>a+(s.pending||0),0);const tC=db.sales.reduce((a,s)=>a+(s.paid||0),0);const tV=db.sales.reduce((a,s)=>a+(s.total||0),0);document.getElementById('abonoStats').innerHTML=`<div class="stat-card"><div class="stat-label">Total ventas</div><div class="stat-value">${fmt(tV)}</div></div><div class="stat-card"><div class="stat-label">Total cobrado</div><div class="stat-value" style="color:var(--success);">${fmt(tC)}</div></div><div class="stat-card"><div class="stat-label">Pendiente</div><div class="stat-value" style="color:${tP>0?'var(--warning)':'var(--success)'};">${fmt(tP)}</div></div>`;const el=document.getElementById('abonosList');if(!sales.length){el.innerHTML='<div class="empty-state"><div class="empty-state-icon">💳</div><p>Sin registros</p></div>';return;}const isAdmin=currentUser?.role==='admin';el.innerHTML=sales.map(s=>{const pct=Math.min(100,Math.round((s.paid/s.total)*100));const isLiq=!s.pending||s.pending<=0;const hist=(s.abonoHistory||[{fecha:s.ts,monto:s.paid,metodo:s.methodSummary,nota:'Pago inicial'}]);const clientPhone=db.clients.find(c=>c.id===s.clientId)?.phone||'';return `<div style="border:1px solid var(--border);border-radius:var(--radius);padding:12px;margin-bottom:8px;background:${isLiq?'#f8fff8':s.pending>0?'#fffbf0':'var(--surface)'}"><div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:7px;flex-wrap:wrap;gap:8px;"><div><div style="font-size:13px;font-weight:600;">${esc(s.clientName)||'Sin cliente'}</div><div style="font-size:10px;color:var(--text3);">${(s.items?.map(i=>esc(i.name)).join(', ')||'Venta').slice(0,60)} · ${new Date(s.ts).toLocaleDateString('es-MX')}</div></div><div style="display:flex;align-items:flex-start;gap:6px;"><div style="text-align:right;"><div style="font-size:14px;font-weight:700;color:var(--primary);">${fmt(s.total)}</div><span class="badge ${isLiq?'badge-success':'badge-warning'}">${isLiq?'✓ Liquidado':'Pendiente'}</span></div>${isAdmin?`<div style="display:flex;gap:3px;"><button class="btn-icon" title="Editar venta" onclick="editSale('${s.id}')">✏️</button><button class="btn-icon" title="Eliminar venta" onclick="deleteSale('${s.id}')" style="color:var(--danger);">🗑</button></div>`:''}</div></div><div class="abono-progress"><div class="abono-progress-bar" style="width:${pct}%;background:${isLiq?'var(--success)':'var(--accent)'}"></div></div><div style="display:flex;justify-content:space-between;font-size:11px;color:var(--text3);margin-top:3px;margin-bottom:8px;"><span>Pagado: <strong style="color:var(--success);">${fmt(s.paid)}</strong></span>${s.pending>0?`<span>Pendiente: <strong style="color:var(--warning);">${fmt(s.pending)}</strong></span>`:''}<span>${pct}%</span></div>${hist.length>0?`<details style="margin-bottom:7px;"><summary style="font-size:11px;color:var(--text3);cursor:pointer;">📋 Historial (${hist.length} pago${hist.length!==1?'s':''})</summary><div style="margin-top:5px;padding:6px;background:var(--surface2);border-radius:6px;">${hist.map((h,hi)=>`<div style="display:flex;justify-content:space-between;font-size:11px;padding:3px 0;border-bottom:1px solid var(--border);"><span style="color:var(--text3);">${new Date(h.fecha).toLocaleDateString('es-MX')} · ${esc(h.metodo||'—')} ${h.nota?'· '+esc(h.nota):''}</span><div style="display:flex;gap:4px;align-items:center;"><span style="font-weight:600;color:var(--success);">+${fmt(h.monto)}</span>${isAdmin&&hi>0?`<button onclick="deleteAbonoEntry('${s.id}',${hi})" style="background:none;border:none;cursor:pointer;color:var(--danger);font-size:11px;padding:0 2px;" title="Eliminar este abono">×</button>`:''}</div></div>`).join('')}</div></details>`:''}<div style="display:flex;gap:6px;flex-wrap:wrap;">${!isLiq?`<button class="btn btn-success btn-sm" onclick="openPagoAbono('${s.id}')">+ Registrar abono / liquidar</button>`:`<div style="font-size:11px;color:var(--success);">✅ Pagado completo</div>`}${clientPhone&&db.config?.wa?`<button class="btn btn-outline btn-sm" onclick="sendRecordatorioDirecto('${s.id}')">📱 Recordatorio WA</button>`:''}</div></div>`;}).join('');}
+
+function editSale(id){if(currentUser?.role!=='admin'){toast('Solo administradores','error');return;}const s=db.sales.find(x=>x.id===id);if(!s)return;const nuevoNombre=prompt('Nombre del cliente:',s.clientName||'');if(nuevoNombre===null)return;const nuevoTotal=prompt('Total de la venta ($):',s.total);if(nuevoTotal===null)return;const nuevoPagado=prompt('Monto pagado ($):',s.paid);if(nuevoPagado===null)return;s.clientName=nuevoNombre.trim()||s.clientName;s.total=parseFloat(nuevoTotal)||s.total;s.paid=parseFloat(nuevoPagado)||s.paid;s.pending=Math.max(0,parseFloat((s.total-s.paid).toFixed(2)));addHistory('config',`Venta editada (Admin): ${s.clientName} ${fmt(s.total)}`);saveDB();renderAbonos();renderDashboard();toast('Venta actualizada','success');}
+
+function deleteSale(id){
+  if(currentUser?.role!=='admin'){toast('Solo administradores','error');return;}
+  const s=db.sales.find(x=>x.id===id);
+  if(!confirm(`¿Eliminar venta de ${s?.clientName||'este cliente'} por ${fmt(s?.total||0)}?\n\nEsta acción eliminará también al pasajero del viaje correspondiente y no se puede deshacer.`))return;
+  // Revertir stock de productos
+  s.items?.forEach(item=>{
+    if(item.type==='producto'){const p=db.products.find(x=>x.id===item.id);if(p)p.stock+=item.qty;}
+    // Eliminar pasajero del viaje
+    if(item.type==='viaje'){
+      const trip=db.trips.find(t=>t.id===item.id);
+      if(trip&&trip.passengers){
+        trip.passengers=trip.passengers.filter(p=>p.saleId!==id);
+      }
+    }
+  });
+  db.sales=db.sales.filter(x=>x.id!==id);
+  addHistory('config',`Venta ELIMINADA (Admin): ${s?.clientName} ${fmt(s?.total||0)}`);
+  saveDB();renderAbonos();renderDashboard();
+  toast('Venta eliminada y pasajero removido del viaje','success');
+}
+
+function deleteAbonoEntry(saleId,hiIdx){if(currentUser?.role!=='admin'){toast('Solo administradores','error');return;}const s=db.sales.find(x=>x.id===saleId);if(!s||!s.abonoHistory)return;const entry=s.abonoHistory[hiIdx];if(!confirm(`¿Eliminar abono de ${fmt(entry?.monto||0)}?`))return;s.paid=Math.max(0,parseFloat((s.paid-(entry?.monto||0)).toFixed(2)));s.pending=parseFloat((s.total-s.paid).toFixed(2));s.abonoHistory.splice(hiIdx,1);addHistory('config',`Abono eliminado (Admin): ${s.clientName} -${fmt(entry?.monto||0)}`);saveDB();renderAbonos();toast('Abono eliminado','success');}
+
+function sendRecordatorioDirecto(saleId){
+  const sale=db.sales.find(s=>s.id===saleId);if(!sale)return;
+  const client=db.clients.find(c=>c.id===sale.clientId);
+  const phone=client?.phone||'';
+  if(!phone){toast('El cliente no tiene teléfono registrado','warning');return;}
+  const tripItem=sale.items?.find(i=>i.type==='viaje');
+  const tripName=tripItem?.name||'';
+  const msg=getEstadoCuentaMsg(saleId,sale.clientName||'',tripName);
+  if(!msg){toast('Error generando mensaje','error');return;}
+  window.open(`https://wa.me/${phone.replace(/\D/g,'')}?text=${encodeURIComponent(msg)}`);
+}
 function openPagoAbono(saleId){currentAbonoSaleId=saleId;const s=db.sales.find(x=>x.id===saleId);if(!s)return;const pct=Math.round((s.paid/s.total)*100);document.getElementById('pagoAbonoInfo').innerHTML=`<div style="background:var(--accent-pale);border:1px solid var(--accent-light);border-radius:var(--radius);padding:10px;"><div style="font-size:13px;font-weight:600;margin-bottom:4px;">${s.clientName||'Sin cliente'}</div><div style="font-size:12px;color:var(--text2);margin-bottom:6px;">Total: ${fmt(s.total)} · Pagado: ${fmt(s.paid)} · Pendiente: <strong style="color:var(--warning);">${fmt(s.pending)}</strong></div><div class="abono-progress"><div class="abono-progress-bar" style="width:${pct}%"></div></div><div style="font-size:10px;color:var(--text3);margin-top:3px;">${pct}% completado</div></div>`;document.getElementById('pagoAbonoMonto').value=s.pending.toFixed(2);document.getElementById('pagoAbonoNota').value='';document.getElementById('pagoAbonoPreview').innerHTML='';const sel=document.getElementById('pagoAbonoMetodo');sel.innerHTML=db.payments.filter(p=>p.active).map(p=>`<option value="${p.id}">${p.name}${p.commission>0?` (+${p.commission}%)`:''}</option>`).join('');openModal('pagoAbonoModal');}
 function updatePagoPreview(){const s=db.sales.find(x=>x.id===currentAbonoSaleId);if(!s)return;const monto=parseFloat(document.getElementById('pagoAbonoMonto').value)||0;const nuevo=Math.max(0,s.pending-monto);const el=document.getElementById('pagoAbonoPreview');if(monto<=0){el.innerHTML='';return;}const isLiq=nuevo<0.01;el.innerHTML=`<div style="padding:7px 10px;border-radius:var(--radius);background:${isLiq?'#e8f8f0':'#fef3dc'};border:1px solid ${isLiq?'#a8dfbf':'#f8d99e'};font-size:12px;"><div style="font-weight:500;color:${isLiq?'var(--success)':'var(--warning)'};margin-bottom:1px;">${isLiq?'✅ Quedará LIQUIDADO':'⚠️ Quedará saldo pendiente'}</div><div>Saldo nuevo: <strong>${fmt(nuevo)}</strong></div>${monto>s.pending?`<div style="color:var(--text3);">Cambio a devolver: ${fmt(monto-s.pending)}</div>`:''}</div>`;}
 function registrarPagoAbono(){const s=db.sales.find(x=>x.id===currentAbonoSaleId);if(!s)return;const monto=parseFloat(document.getElementById('pagoAbonoMonto').value)||0;if(monto<=0){toast('Ingresa un monto válido','error');return;}const methodId=document.getElementById('pagoAbonoMetodo').value;const method=db.payments.find(p=>p.id===methodId);const nota=document.getElementById('pagoAbonoNota').value.trim();const pagoReal=Math.min(monto,s.pending);s.paid=parseFloat((s.paid+pagoReal).toFixed(2));s.pending=Math.max(0,parseFloat((s.pending-pagoReal).toFixed(2)));if(!s.abonoHistory)s.abonoHistory=[{fecha:s.ts,monto:s.paid-pagoReal,metodo:s.methodSummary,nota:'Pago inicial'}];s.abonoHistory.push({fecha:new Date().toISOString(),monto:pagoReal,metodo:method?.name||methodId,nota:nota||'Abono'});if(s.pending<0.01){s.pending=0;s.isAbono=false;}db.caja=db.caja||{fondo:500,ventas:0};db.caja.ventas=(db.caja.ventas||0)+pagoReal;const accion=s.pending===0?'Liquidado':'Abono';addHistory('abono',`${accion}: ${s.clientName||'Sin cliente'} · ${fmt(pagoReal)} vía ${method?.name||methodId}${nota?' - '+nota:''}`);saveDB();closeModal('pagoAbonoModal');renderAbonos();renderDashboard();if(s.pending===0)toast(`¡Cuenta liquidada! ✅ ${s.clientName||'Cliente'} pagó completo`,'success');else toast(`Abono registrado. Saldo restante: ${fmt(s.pending)}`,'info');}
 
 // HISTORY
-function renderHistory(){const type=document.getElementById('histFilter')?.value||'';const from=document.getElementById('histDateFrom')?.value;const to=document.getElementById('histDateTo')?.value;let hist=db.history;if(type)hist=hist.filter(h=>h.type===type);if(from)hist=hist.filter(h=>h.ts>=from);if(to)hist=hist.filter(h=>h.ts<=to+'T23:59:59');const icons={sale:'💰',abono:'💳',inventory:'📦',config:'⚙️'};const colors={sale:'#e8f8f0',abono:'#fef3dc',inventory:'#E6F1FB',config:'#f0eeff'};document.getElementById('historyList').innerHTML=hist.length?hist.map(h=>`<div style="display:flex;align-items:flex-start;gap:10px;padding:9px 0;border-bottom:1px solid var(--border);"><div style="width:28px;height:28px;border-radius:50%;background:${colors[h.type]||'var(--surface2)'};display:flex;align-items:center;justify-content:center;font-size:12px;flex-shrink:0;">${icons[h.type]||'📋'}</div><div style="flex:1;"><div style="font-size:12px;font-weight:500;">${h.desc}</div><div style="font-size:10px;color:var(--text3);margin-top:1px;">${h.user} · ${new Date(h.ts).toLocaleString('es-MX')}</div></div></div>`).join(''):'<div class="empty-state"><div class="empty-state-icon">📋</div><p>Sin movimientos</p></div>';}
+function renderHistory(){const type=document.getElementById('histFilter')?.value||'';const from=document.getElementById('histDateFrom')?.value;const to=document.getElementById('histDateTo')?.value;let hist=db.history;if(type)hist=hist.filter(h=>h.type===type);if(from)hist=hist.filter(h=>h.ts>=from);if(to)hist=hist.filter(h=>h.ts<=to+'T23:59:59');const icons={sale:'💰',abono:'💳',inventory:'📦',config:'⚙️'};const colors={sale:'#e8f8f0',abono:'#fef3dc',inventory:'#E6F1FB',config:'#f0eeff'};const isAdmin=currentUser?.role==='admin';document.getElementById('historyList').innerHTML=hist.length?hist.map((h,i)=>`<div style="display:flex;align-items:flex-start;gap:10px;padding:9px 0;border-bottom:1px solid var(--border);"><div style="width:28px;height:28px;border-radius:50%;background:${colors[h.type]||'var(--surface2)'};display:flex;align-items:center;justify-content:center;font-size:12px;flex-shrink:0;">${icons[h.type]||'📋'}</div><div style="flex:1;"><div style="font-size:12px;font-weight:500;">${h.desc}</div><div style="font-size:10px;color:var(--text3);margin-top:1px;">${h.user} · ${new Date(h.ts).toLocaleString('es-MX')}</div></div>${isAdmin?`<button onclick="deleteHistoryEntry('${h.id}')" class="btn-icon" style="color:var(--danger);flex-shrink:0;" title="Eliminar registro">🗑</button>`:''}</div>`).join(''):'<div class="empty-state"><div class="empty-state-icon">📋</div><p>Sin movimientos</p></div>';
+if(isAdmin){const existingBtn=document.getElementById('clearHistBtn');if(!existingBtn){const hdr=document.querySelector('#section-historial .card .card-header');if(hdr){const btn=document.createElement('button');btn.id='clearHistBtn';btn.className='btn btn-danger btn-sm';btn.textContent='🗑 Limpiar todo';btn.onclick=()=>{if(confirm('¿Eliminar TODO el historial? No se puede deshacer.'))clearAllHistory();};hdr.appendChild(btn);}}}}
+
+function deleteHistoryEntry(hid){if(currentUser?.role!=='admin'){toast('Solo administradores','error');return;}db.history=db.history.filter(h=>h.id!==hid);saveDB();renderHistory();toast('Registro eliminado','success');}
+function clearAllHistory(){if(currentUser?.role!=='admin'){toast('Solo administradores','error');return;}db.history=[];saveDB();renderHistory();toast('Historial limpiado','success');}
 
 // CONFIG
 function renderConfig(){const cfg=db.config;document.getElementById('cfgName').value=cfg.name||'';document.getElementById('cfgWA').value=cfg.wa||'';document.getElementById('cfgIG').value=cfg.ig||'';document.getElementById('cfgCLABE').value=cfg.clabe||'';document.getElementById('cfgMinStock').value=cfg.minStock||5;document.getElementById('cfgCajaInicial').value=cfg.cajaInicial||500;renderPayMethods();renderUsersTable();renderCatsTable();}
@@ -784,5 +1045,153 @@ function renderCajaCorte(){const ts=db.sales.filter(s=>new Date(s.ts).toDateStri
 function sendCortePorWA(){const ts=db.sales.filter(s=>new Date(s.ts).toDateString()===new Date().toDateString());const total=ts.reduce((a,s)=>a+(s.paid||0),0);const fondo=parseFloat(db.config?.cajaInicial)||500;const msg=`💰 *Corte de caja - Nómadas Tours*\n📅 ${new Date().toLocaleDateString('es-MX')}\n\nFondo inicial: ${fmt(fondo)}\nVentas del día: ${fmt(total)}\nTotal en caja: ${fmt(fondo+total)}\nNo. ventas: ${ts.length}`;window.open(`https://wa.me/${(db.config?.wa||'').replace(/\D/g,'')}?text=${encodeURIComponent(msg)}`);}
 function showCajaCorte(){navigate('config');setTimeout(()=>{switchConfigTab('configCaja',document.querySelector('.tabs .tab:nth-child(6)'));},80);}
 
+// ============================================================
+// GRÁFICAS
+// ============================================================
+let grafCharts={};
+
+function grafSetRango(dias){
+  const hasta=new Date();const desde=new Date();desde.setDate(desde.getDate()-dias);
+  document.getElementById('grafHasta').value=hasta.toISOString().split('T')[0];
+  document.getElementById('grafDesde').value=desde.toISOString().split('T')[0];
+  renderGraficas();
+}
+
+function grafGetSales(){
+  const desde=document.getElementById('grafDesde')?.value;
+  const hasta=document.getElementById('grafHasta')?.value;
+  return db.sales.filter(s=>{
+    const d=s.ts.split('T')[0];
+    if(desde&&d<desde)return false;
+    if(hasta&&d>hasta)return false;
+    return true;
+  });
+}
+
+function grafGetKey(ts){
+  const agrup=document.getElementById('grafAgrup')?.value||'mes';
+  const d=new Date(ts);
+  if(agrup==='dia')return d.toLocaleDateString('es-MX',{day:'2-digit',month:'short'});
+  if(agrup==='semana'){const wd=new Date(d);wd.setDate(wd.getDate()-wd.getDay());return 'Sem '+wd.toLocaleDateString('es-MX',{day:'2-digit',month:'short'});}
+  return d.toLocaleDateString('es-MX',{month:'short',year:'numeric'});
+}
+
+function destroyChart(id){if(grafCharts[id]){grafCharts[id].destroy();delete grafCharts[id];}}
+
+const COLORS=['#378ADD','#27ae60','#d68910','#c0392b','#8e44ad','#16a085','#e67e22','#2980b9','#1abc9c','#e74c3c'];
+
+function renderGraficas(){
+  if(currentUser?.role!=='admin')return;
+  const sales=grafGetSales();
+
+  // 1. Ingresos por período
+  destroyChart('chartIngresos');
+  const ingMap={};
+  sales.forEach(s=>{const k=grafGetKey(s.ts);ingMap[k]=(ingMap[k]||0)+(s.paid||0);});
+  const ingKeys=Object.keys(ingMap);const ingVals=ingKeys.map(k=>parseFloat(ingMap[k].toFixed(2)));
+  grafCharts['chartIngresos']=new Chart(document.getElementById('chartIngresos'),{
+    type:'bar',data:{labels:ingKeys,datasets:[{label:'Ingresos ($)',data:ingVals,backgroundColor:'#378ADD99',borderColor:'#378ADD',borderWidth:2,borderRadius:6}]},
+    options:{responsive:true,plugins:{legend:{display:false}},scales:{y:{beginAtZero:true,ticks:{callback:v=>'$'+v}}}}
+  });
+  const total=ingVals.reduce((a,b)=>a+b,0);const max=Math.max(...ingVals);const maxPer=ingKeys[ingVals.indexOf(max)];
+  const prom=ingVals.length?total/ingVals.length:0;
+  document.getElementById('analisisIngresos').innerHTML=ingKeys.length?
+    `📌 <strong>Total período:</strong> ${fmt(total)} · <strong>Mejor período:</strong> ${maxPer} (${fmt(max)}) · <strong>Promedio:</strong> ${fmt(prom)}<br>
+     ${max>prom*1.5?'🚀 Hay picos de venta claros — considera concentrar campañas en esas fechas.':max>prom?'📈 Los ingresos son relativamente estables con algunos picos.':'⚠️ Los ingresos son irregulares. Evalúa acciones para estabilizar las ventas.'}`:
+    '<span style="color:var(--text3)">Sin datos en el período seleccionado.</span>';
+
+  // 2. Métodos de pago
+  destroyChart('chartMetodos');
+  const metMap={};
+  sales.forEach(s=>{(s.paymentDetails||[]).forEach(ap=>{const m=db.payments.find(p=>p.id===ap.methodId);const n=m?.name||ap.methodId;metMap[n]=(metMap[n]||0)+ap.amount;});if(!s.paymentDetails?.length&&s.methodSummary)metMap[s.methodSummary]=(metMap[s.methodSummary]||0)+(s.paid||0);});
+  const metKeys=Object.keys(metMap);const metVals=metKeys.map(k=>parseFloat(metMap[k].toFixed(2)));
+  grafCharts['chartMetodos']=new Chart(document.getElementById('chartMetodos'),{
+    type:'doughnut',data:{labels:metKeys,datasets:[{data:metVals,backgroundColor:COLORS.slice(0,metKeys.length),borderWidth:2}]},
+    options:{responsive:true,plugins:{legend:{position:'bottom',labels:{font:{size:11}}}}}
+  });
+  const totalMet=metVals.reduce((a,b)=>a+b,0);const topMet=metKeys[metVals.indexOf(Math.max(...metVals))];
+  const efectivoPct=metMap['Efectivo']?(metMap['Efectivo']/totalMet*100).toFixed(0):0;
+  document.getElementById('analisisMetodos').innerHTML=metKeys.length?
+    `📌 <strong>Método dominante:</strong> ${topMet} · <strong>Efectivo:</strong> ${efectivoPct}%<br>
+     ${efectivoPct>70?'💡 Alta dependencia de efectivo — considera incentivar pagos digitales para reducir riesgo.':'✅ Buena diversificación de métodos de pago.'}`:
+    '<span style="color:var(--text3)">Sin datos.</span>';
+
+  // 3. Ingresos por viaje
+  destroyChart('chartViajes');
+  const viajeMap={};
+  sales.forEach(s=>{s.items?.forEach(i=>{if(i.type==='viaje'){viajeMap[i.name]=(viajeMap[i.name]||0)+(i.price*i.qty);}});});
+  const viajeKeys=Object.keys(viajeMap).slice(0,8);const viajeVals=viajeKeys.map(k=>parseFloat(viajeMap[k].toFixed(2)));
+  grafCharts['chartViajes']=new Chart(document.getElementById('chartViajes'),{
+    type:'bar',data:{labels:viajeKeys,datasets:[{label:'Ingresos ($)',data:viajeVals,backgroundColor:COLORS.slice(0,viajeKeys.length),borderRadius:6}]},
+    options:{indexAxis:'y',responsive:true,plugins:{legend:{display:false}},scales:{x:{beginAtZero:true,ticks:{callback:v=>'$'+v}}}}
+  });
+  const topViaje=viajeKeys[0]||'—';const topViajeVal=viajeVals[0]||0;
+  document.getElementById('analisisViajes').innerHTML=viajeKeys.length?
+    `📌 <strong>Viaje más rentable:</strong> ${topViaje} (${fmt(topViajeVal)})<br>
+     💡 Enfoca la promoción en los viajes con mayor ingreso. ${viajeKeys.length===1?'Solo hay 1 viaje con ventas — diversifica la oferta.':''}`:
+    '<span style="color:var(--text3)">No hay ventas de viajes en el período.</span>';
+
+  // 4. Estado de cobros
+  destroyChart('chartCobros');
+  const filtSales=sales;const cobLiq=filtSales.filter(s=>!s.pending||s.pending<0.01).reduce((a,s)=>a+(s.total||0),0);
+  const cobPend=filtSales.filter(s=>s.pending>0.01).reduce((a,s)=>a+(s.pending||0),0);
+  const cobPagado=filtSales.filter(s=>s.pending>0.01).reduce((a,s)=>a+(s.paid||0),0);
+  grafCharts['chartCobros']=new Chart(document.getElementById('chartCobros'),{
+    type:'pie',data:{labels:['Cobrado completo','Ya pagado (abonos)','Pendiente'],datasets:[{data:[cobLiq,cobPagado,cobPend].map(v=>parseFloat(v.toFixed(2))),backgroundColor:['#27ae6099','#378ADD99','#d6891099'],borderColor:['#27ae60','#378ADD','#d68910'],borderWidth:2}]},
+    options:{responsive:true,plugins:{legend:{position:'bottom',labels:{font:{size:11}}}}}
+  });
+  const totalCob=cobLiq+cobPagado+cobPend;const pendPct=totalCob?(cobPend/totalCob*100).toFixed(1):0;
+  document.getElementById('analisisCobros').innerHTML=
+    `📌 <strong>Total generado:</strong> ${fmt(totalCob)} · <strong>Sin cobrar:</strong> ${fmt(cobPend)} (${pendPct}%)<br>
+     ${pendPct>30?'⚠️ Más del 30% está pendiente de cobro — prioriza la cobranza para mejorar el flujo.':pendPct>10?'📋 Hay saldo pendiente moderado. Envía recordatorios de pago.':'✅ Excelente nivel de cobranza.'}`;
+
+  // 5. Top productos
+  destroyChart('chartProductos');
+  const prodMap={};
+  sales.forEach(s=>{s.items?.forEach(i=>{if(i.type==='producto'){prodMap[i.name]=(prodMap[i.name]||0)+(i.qty);}});});
+  const prodEntries=Object.entries(prodMap).sort((a,b)=>b[1]-a[1]).slice(0,10);
+  const prodKeys=prodEntries.map(e=>e[0]);const prodVals=prodEntries.map(e=>e[1]);
+  grafCharts['chartProductos']=new Chart(document.getElementById('chartProductos'),{
+    type:'bar',data:{labels:prodKeys,datasets:[{label:'Unidades vendidas',data:prodVals,backgroundColor:'#8e44ad99',borderColor:'#8e44ad',borderWidth:2,borderRadius:6}]},
+    options:{indexAxis:'y',responsive:true,plugins:{legend:{display:false}},scales:{x:{beginAtZero:true,ticks:{stepSize:1}}}}
+  });
+  const topProd=prodKeys[0]||'—';
+  document.getElementById('analisisProductos').innerHTML=prodKeys.length?
+    `📌 <strong>Producto estrella:</strong> ${topProd} (${prodVals[0]||0} uds) · <strong>Total SKUs vendidos:</strong> ${prodKeys.length}<br>
+     💡 Asegura stock suficiente de los top 3 productos para evitar quiebres de inventario.`:
+    '<span style="color:var(--text3)">No hay ventas de productos en el período.</span>';
+
+  // 6. Top clientes
+  destroyChart('chartClientes');
+  const cliMap={};
+  sales.forEach(s=>{if(s.clientName&&s.clientName!=='Sin cliente')cliMap[s.clientName]=(cliMap[s.clientName]||0)+(s.paid||0);});
+  const cliEntries=Object.entries(cliMap).sort((a,b)=>b[1]-a[1]).slice(0,8);
+  const cliKeys=cliEntries.map(e=>e[0]);const cliVals=cliEntries.map(e=>parseFloat(e[1].toFixed(2)));
+  grafCharts['chartClientes']=new Chart(document.getElementById('chartClientes'),{
+    type:'bar',data:{labels:cliKeys,datasets:[{label:'Total pagado ($)',data:cliVals,backgroundColor:COLORS.slice(0,cliKeys.length).map(c=>c+'99'),borderColor:COLORS.slice(0,cliKeys.length),borderWidth:2,borderRadius:6}]},
+    options:{indexAxis:'y',responsive:true,plugins:{legend:{display:false}},scales:{x:{beginAtZero:true,ticks:{callback:v=>'$'+v}}}}
+  });
+  const topCli=cliKeys[0]||'—';
+  document.getElementById('analisisClientes').innerHTML=cliKeys.length?
+    `📌 <strong>Cliente VIP:</strong> ${topCli} (${fmt(cliVals[0]||0)})<br>
+     💡 Los clientes recurrentes son tu activo más valioso — considera programa de lealtad o descuentos exclusivos.`:
+    '<span style="color:var(--text3)">No hay clientes registrados con ventas.</span>';
+}
+
+function exportGraficasCSV(){
+  const sales=grafGetSales();
+  const rows=[['Fecha','Cliente','Items','Total','Pagado','Pendiente','Métodos']];
+  sales.forEach(s=>{
+    const items=s.items?.map(i=>i.name+'x'+i.qty).join(' | ')||'';
+    const mets=(s.paymentDetails||[]).map(ap=>{const m=db.payments.find(p=>p.id===ap.methodId);return (m?.name||ap.methodId)+' $'+ap.amount;}).join(' | ');
+    rows.push([new Date(s.ts).toLocaleDateString('es-MX'),s.clientName||'Sin cliente',items,s.total,s.paid,s.pending||0,mets]);
+  });
+  const csv=rows.map(r=>r.map(v=>JSON.stringify(String(v))).join(',')).join('\n');
+  const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8;'}));
+  a.download=`nomadas_graficas_${new Date().toISOString().split('T')[0]}.csv`;a.click();
+  toast('CSV exportado','success');
+}
+
 loadDB();initLogin();
 </script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
