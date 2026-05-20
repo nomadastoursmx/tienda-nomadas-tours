@@ -453,6 +453,11 @@ hr{border:none;border-top:1px solid var(--border);margin:10px 0;}
             <div id="analisisClientes" style="margin-top:10px;padding:8px;background:var(--accent-pale);border-radius:var(--radius);font-size:12px;color:var(--primary-dark);"></div>
           </div>
         </div>
+        <div class="card" style="margin-bottom:14px;">
+          <div class="card-header"><div class="card-title">💰 Rentabilidad por viaje</div></div>
+          <canvas id="chartRentabilidad" height="180"></canvas>
+          <div id="analisisRentabilidad" style="margin-top:10px;padding:8px;background:var(--accent-pale);border-radius:var(--radius);font-size:12px;color:var(--primary-dark);"></div>
+        </div>
       </div>
 
       <!-- CONFIG -->
@@ -595,7 +600,7 @@ hr{border:none;border-top:1px solid var(--border);margin:10px 0;}
       <div class="form-group">
         <label class="form-label">Código de referencia</label>
         <div style="display:flex;align-items:center;gap:6px;">
-          <input class="form-control" id="tripCodigo" placeholder="Auto" style="font-family:monospace;font-weight:600;letter-spacing:1px;" readonly>
+          <input class="form-control" id="tripCodigo" placeholder="Auto (o escribe uno personalizado)" style="font-family:monospace;font-weight:600;letter-spacing:1px;" oninput="this.value=this.value.toUpperCase()">
           <button type="button" class="btn btn-outline btn-sm" onclick="regenerarCodigo()" title="Regenerar código" style="flex-shrink:0;">🔄</button>
         </div>
         <div class="form-hint">Se genera automáticamente. Los clientes lo usan como referencia al pagar.</div>
@@ -605,6 +610,22 @@ hr{border:none;border-top:1px solid var(--border);margin:10px 0;}
     <div class="form-group"><label class="form-label">¿Qué incluye?</label><textarea class="form-control" id="tripIncludes" rows="2"></textarea></div>
     <div class="form-group"><label class="form-label">Recomendaciones</label><textarea class="form-control" id="tripRecs" rows="2"></textarea></div>
     <div class="form-group"><label class="form-label">Emoji o URL de imagen</label><input class="form-control" id="tripImg" placeholder="🏔️"></div>
+
+    <!-- PRESUPUESTO -->
+    <div style="border-top:1px solid var(--border);margin:14px 0 10px;padding-top:12px;">
+      <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.8px;color:var(--text3);margin-bottom:10px;">💰 Presupuesto del viaje</div>
+      <div class="grid grid-2">
+        <div class="form-group"><label class="form-label">Transporte ($)</label><input type="number" class="form-control" id="costTransporte" min="0" step="0.01" placeholder="0.00" oninput="updateTripFinancials()"></div>
+        <div class="form-group"><label class="form-label">Hospedaje ($)</label><input type="number" class="form-control" id="costHospedaje" min="0" step="0.01" placeholder="0.00" oninput="updateTripFinancials()"></div>
+        <div class="form-group"><label class="form-label">Alimentación ($)</label><input type="number" class="form-control" id="costAlimentacion" min="0" step="0.01" placeholder="0.00" oninput="updateTripFinancials()"></div>
+        <div class="form-group"><label class="form-label">Guías / Staff ($)</label><input type="number" class="form-control" id="costGuias" min="0" step="0.01" placeholder="0.00" oninput="updateTripFinancials()"></div>
+        <div class="form-group"><label class="form-label">Seguros / Permisos ($)</label><input type="number" class="form-control" id="costSeguros" min="0" step="0.01" placeholder="0.00" oninput="updateTripFinancials()"></div>
+        <div class="form-group"><label class="form-label">Imprevistos / Otros ($)</label><input type="number" class="form-control" id="costOtros" min="0" step="0.01" placeholder="0.00" oninput="updateTripFinancials()"></div>
+      </div>
+      <!-- Resumen financiero en vivo -->
+      <div id="tripFinancialSummary" style="display:none;background:var(--surface2);border-radius:var(--radius);padding:12px;margin-top:4px;"></div>
+    </div>
+
     <div class="modal-footer"><button class="btn btn-outline" onclick="closeModal('tripModal')">Cancelar</button><button class="btn btn-primary" onclick="saveTrip()">💾 Guardar</button></div>
   </div>
 </div>
@@ -742,7 +763,7 @@ function validateAndRepairDB(data){
   const cfgDef={name:'Nómadas Tours',wa:'',ig:'',clabe:'',minStock:5,cajaInicial:500};
   Object.entries(cfgDef).forEach(([k,v])=>{if(data.config[k]===undefined)data.config[k]=v;});
   // Reparar trips: garantizar passengers array
-  data.trips.forEach(t=>{if(!Array.isArray(t.passengers))t.passengers=[];if(!t.slots)t.slots=20;});
+  data.trips.forEach(t=>{if(!Array.isArray(t.passengers))t.passengers=[];if(!t.slots)t.slots=20;if(!t.budget)t.budget={transporte:0,hospedaje:0,alimentacion:0,guias:0,seguros:0,otros:0};});
   // Limpiar movimientos huérfanos (cuenta eliminada)
   if(Array.isArray(data.movimientos)){
     const cuentaIds=new Set((data.cuentas||[]).map(c=>c.id));
@@ -878,26 +899,87 @@ function openTripModal(id=null){
   document.getElementById('tripStatus').value=t?.status||'activo';
   document.getElementById('tripPrefix').value=t?.prefix||'';
   document.getElementById('tripCodigo').value=t?.codigo||'';
+  // Presupuesto
+  const b=t?.budget||{};
+  document.getElementById('costTransporte').value=b.transporte>0?b.transporte:'';
+  document.getElementById('costHospedaje').value=b.hospedaje>0?b.hospedaje:'';
+  document.getElementById('costAlimentacion').value=b.alimentacion>0?b.alimentacion:'';
+  document.getElementById('costGuias').value=b.guias>0?b.guias:'';
+  document.getElementById('costSeguros').value=b.seguros>0?b.seguros:'';
+  document.getElementById('costOtros').value=b.otros>0?b.otros:'';
+  updateTripFinancials();
   openModal('tripModal');
+}
+
+function getTripBudgetTotal(){
+  return ['costTransporte','costHospedaje','costAlimentacion','costGuias','costSeguros','costOtros']
+    .reduce((a,id)=>a+(parseFloat(document.getElementById(id)?.value)||0),0);
+}
+
+function updateTripFinancials(){
+  const costoTotal=getTripBudgetTotal();
+  const precio=parseFloat(document.getElementById('tripPrice')?.value)||0;
+  const cupos=parseInt(document.getElementById('tripSlots')?.value)||0;
+  const el=document.getElementById('tripFinancialSummary');
+  if(costoTotal<=0){el.style.display='none';return;}
+  el.style.display='block';
+  const ingresoLleno=precio*cupos;
+  const utilidadLlena=ingresoLleno-costoTotal;
+  const margenPct=ingresoLleno>0?((utilidadLlena/ingresoLleno)*100).toFixed(1):0;
+  const costoPorPax=cupos>0?(costoTotal/cupos).toFixed(2):0;
+  const gananciaNetaPax=(precio-parseFloat(costoPorPax)).toFixed(2);
+  // Punto de equilibrio: cuántos pasajeros cubren el costo
+  const puntoCero=precio>0?Math.ceil(costoTotal/precio):0;
+  const pctEquilibrio=cupos>0?Math.round((puntoCero/cupos)*100):0;
+  const colorUtil=utilidadLlena>0?'var(--success)':utilidadLlena===0?'var(--warning)':'var(--danger)';
+  el.innerHTML=`
+    <div style="font-size:10px;font-weight:600;text-transform:uppercase;color:var(--text3);margin-bottom:8px;">Análisis financiero (cupos llenos)</div>
+    <div class="grid grid-3" style="gap:8px;margin-bottom:10px;">
+      <div style="text-align:center;padding:8px;background:var(--surface);border-radius:8px;">
+        <div style="font-size:11px;color:var(--text3);">Costo total</div>
+        <div style="font-size:15px;font-weight:700;color:var(--danger);">${fmt(costoTotal)}</div>
+      </div>
+      <div style="text-align:center;padding:8px;background:var(--surface);border-radius:8px;">
+        <div style="font-size:11px;color:var(--text3);">Ingreso bruto</div>
+        <div style="font-size:15px;font-weight:700;color:var(--primary);">${fmt(ingresoLleno)}</div>
+      </div>
+      <div style="text-align:center;padding:8px;background:var(--surface);border-radius:8px;">
+        <div style="font-size:11px;color:var(--text3);">Utilidad</div>
+        <div style="font-size:15px;font-weight:700;color:${colorUtil};">${fmt(utilidadLlena)}</div>
+        <div style="font-size:10px;color:${colorUtil};">${margenPct}% margen</div>
+      </div>
+    </div>
+    <div style="display:flex;gap:10px;flex-wrap:wrap;font-size:12px;">
+      <span>📊 Costo/pasajero: <strong>${fmt(parseFloat(costoPorPax))}</strong></span>
+      <span>💵 Ganancia neta/pax: <strong style="color:${parseFloat(gananciaNetaPax)>0?'var(--success)':'var(--danger)'};">${fmt(parseFloat(gananciaNetaPax))}</strong></span>
+      <span>⚖️ Punto de equilibrio: <strong>${puntoCero} de ${cupos} pax</strong> (${pctEquilibrio}%)</span>
+    </div>
+    ${precio>0&&puntoCero>cupos?`<div style="margin-top:8px;padding:6px 10px;background:#fff3cd;border-radius:6px;font-size:12px;color:#856404;">⚠️ El costo supera el ingreso máximo posible. Revisa el precio o reduce costos.</div>`:''}`;
 }
 
 function generarCodigoViaje(prefix){
   const p=(prefix||'VJ').toUpperCase().replace(/[^A-Z0-9]/g,'').slice(0,5)||'VJ';
-  // Contar viajes con mismo prefijo para número secuencial
-  const existing=db.trips.filter(t=>t.prefix===p&&t.id!==editingTripId);
-  const num=String(existing.length+1).padStart(3,'0');
-  return `${p}-${num}`;
+  // Usar el número más alto existente + 1 para evitar colisiones si se borró alguno
+  const existing=db.trips.filter(t=>t.prefix===p&&t.id!==editingTripId&&t.codigo);
+  let maxNum=0;
+  existing.forEach(t=>{
+    const parts=t.codigo.split('-');
+    const n=parseInt(parts[parts.length-1])||0;
+    if(n>maxNum)maxNum=n;
+  });
+  return `${p}-${String(maxNum+1).padStart(3,'0')}`;
 }
 
 function previewCodigo(){
   const prefix=document.getElementById('tripPrefix').value;
+  const codigoEl=document.getElementById('tripCodigo');
   if(prefix.length>=2){
-    // Solo actualizar si el código actual está vacío o era auto-generado (empieza con el mismo prefijo o VJ)
-    const current=document.getElementById('tripCodigo').value;
-    const isAuto=!current||current.startsWith(prefix+'-')||current.startsWith('VJ-');
-    if(isAuto)document.getElementById('tripCodigo').value=generarCodigoViaje(prefix);
-  }else{
-    document.getElementById('tripCodigo').value='';
+    const current=codigoEl.value;
+    // Solo auto-llenar si está vacío, o si ya era auto-generado con cualquier prefijo+número
+    const isAutoPattern=/^[A-Z0-9]+-\d+$/.test(current);
+    if(!current||isAutoPattern)codigoEl.value=generarCodigoViaje(prefix);
+  }else if(!codigoEl.value||/^[A-Z0-9]+-\d+$/.test(codigoEl.value)){
+    codigoEl.value='';
   }
 }
 
@@ -915,8 +997,17 @@ function saveTrip(){const name=document.getElementById('tripName').value.trim();
   // Verificar unicidad del código
   const duplicate=db.trips.find(t=>t.codigo===codigo&&t.id!==editingTripId);
   if(duplicate){toast(`El código "${codigo}" ya existe en "${duplicate.name}". Cambia el prefijo o regenera.`,'error');return;}
-  const trip={id:editingTripId||genId(),name,price,date,prefix,codigo,dateReturn:document.getElementById('tripDateReturn').value,desc:document.getElementById('tripDesc').value,includes:document.getElementById('tripIncludes').value,recs:document.getElementById('tripRecs').value,img:document.getElementById('tripImg').value,slots:parseInt(document.getElementById('tripSlots').value)||20,status:document.getElementById('tripStatus').value,passengers:existing?.passengers||[]};
-if(editingTripId){db.trips[db.trips.findIndex(t=>t.id===editingTripId)]=trip;addHistory('config',`Viaje editado: ${name}`);}else{db.trips.unshift(trip);addHistory('config',`Viaje creado: ${name}`);}saveDB();closeModal('tripModal');renderTrips();toast('Viaje guardado','success');}
+  const trip={id:editingTripId||genId(),name,price,date,prefix,codigo,dateReturn:document.getElementById('tripDateReturn').value,desc:document.getElementById('tripDesc').value,includes:document.getElementById('tripIncludes').value,recs:document.getElementById('tripRecs').value,img:document.getElementById('tripImg').value,slots:parseInt(document.getElementById('tripSlots').value)||20,status:document.getElementById('tripStatus').value,passengers:existing?.passengers||[],
+    budget:{
+      transporte:parseFloat(document.getElementById('costTransporte').value)||0,
+      hospedaje:parseFloat(document.getElementById('costHospedaje').value)||0,
+      alimentacion:parseFloat(document.getElementById('costAlimentacion').value)||0,
+      guias:parseFloat(document.getElementById('costGuias').value)||0,
+      seguros:parseFloat(document.getElementById('costSeguros').value)||0,
+      otros:parseFloat(document.getElementById('costOtros').value)||0,
+    }
+  };
+if(editingTripId){db.trips[db.trips.findIndex(t=>t.id===editingTripId)]=trip;addHistory('config',`Viaje editado: ${name}${codigo?' ('+codigo+')':''}`);}else{db.trips.unshift(trip);addHistory('config',`Viaje creado: ${name}${codigo?' ('+codigo+')':''}`);}saveDB();closeModal('tripModal');renderTrips();toast('Viaje guardado','success');}
 function renderTrips(){const q=(document.getElementById('tripSearch')?.value||'').toLowerCase();const st=document.getElementById('tripStatusFilter')?.value||'';let trips=db.trips.filter(t=>(!q||(t.name+(t.desc||'')).toLowerCase().includes(q))&&(!st||t.status===st));const grid=document.getElementById('tripsGrid');const empty=document.getElementById('tripsEmpty');if(!trips.length){grid.innerHTML='';empty.style.display='block';empty.innerHTML=db.trips.length===0?'<div class="empty-state-icon">✈️</div><p>Sin viajes registrados</p>':'<div class="empty-state-icon">🔍</div><p>Sin resultados para tu búsqueda</p>';return;}empty.style.display='none';const sb={activo:'badge-success',proximo:'badge-info',completo:'badge-gray'};const sl={activo:'Activo',proximo:'Próximamente',completo:'Completo'};grid.innerHTML=trips.map(t=>`<div class="trip-card" onclick="viewTrip('${t.id}')"><div class="trip-img">${t.img&&t.img.startsWith('http')?`<img src="${t.img}" style="width:100%;height:100%;object-fit:cover;">`:(t.img||'✈️')}</div><div class="trip-body"><div class="trip-name">${esc(t.name)}</div><div class="trip-date">📅 ${t.date}${t.dateReturn?' → '+t.dateReturn:''}</div><div class="trip-price">${fmt(t.price)}</div><div style="display:flex;gap:5px;flex-wrap:wrap;margin-top:5px;"><span class="badge ${sb[t.status]||'badge-gray'}">${sl[t.status]||t.status}</span><span class="badge badge-gray">👤 ${t.slots}</span>${(t.passengers||[]).length>0?`<span class="badge badge-warning">🧍 ${t.passengers.length}</span>`:''}</div>${t.codigo?`<div style="margin-top:6px;display:flex;align-items:center;gap:5px;"><span style="font-family:monospace;font-size:11px;font-weight:700;color:var(--primary);background:var(--accent-pale);padding:2px 7px;border-radius:5px;letter-spacing:1px;">${esc(t.codigo)}</span><button onclick="copiarCodigo('${esc(t.codigo)}',event)" style="background:none;border:none;cursor:pointer;font-size:12px;padding:0 2px;" title="Copiar código">📋</button></div>`:''}${currentUser?.role==='admin'?`<div style="display:flex;gap:4px;margin-top:7px;" onclick="event.stopPropagation()"><button class="btn btn-outline btn-xs" onclick="openTripModal('${t.id}')">✏️</button><button class="btn btn-danger btn-xs" onclick="deleteTrip('${t.id}')">🗑</button></div>`:''}</div></div>`).join('');}
 function esc(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');}
 function copiarCodigo(codigo,event){event.stopPropagation();navigator.clipboard?.writeText(codigo).then(()=>toast(`Código ${codigo} copiado al portapapeles`,'success')).catch(()=>{prompt('Copia el código:',codigo);});}
@@ -978,6 +1069,26 @@ function viewTrip(id){
     ${t.desc?`<p style="font-size:13px;color:var(--text2);margin-bottom:8px;">${esc(t.desc)}</p>`:''}
     ${t.includes?`<div style="margin-bottom:8px;"><div style="font-size:10px;text-transform:uppercase;color:var(--text3);margin-bottom:3px;">Incluye</div><div style="font-size:13px;">${esc(t.includes)}</div></div>`:''}
     ${t.recs?`<div style="margin-bottom:8px;"><div style="font-size:10px;text-transform:uppercase;color:var(--text3);margin-bottom:3px;">Recomendaciones</div><div style="font-size:13px;">${esc(t.recs)}</div></div>`:''}
+    ${(()=>{
+      const b=t.budget||{};
+      const costoTotal=Object.values(b).reduce((a,v)=>a+(parseFloat(v)||0),0);
+      if(costoTotal<=0)return '';
+      const cobrado=db.sales.filter(s=>s.items?.some(i=>i.type==='viaje'&&i.id===t.id)).reduce((a,s)=>a+(s.paid||0),0);
+      const ingresoEstimado=parseFloat(t.price)*t.slots;
+      const utilidadEst=ingresoEstimado-costoTotal;
+      const utilidadReal=cobrado-costoTotal;
+      const puntoCero=parseFloat(t.price)>0?Math.ceil(costoTotal/parseFloat(t.price)):0;
+      const costoPax=t.slots>0?(costoTotal/t.slots).toFixed(2):0;
+      const pctInscr=t.slots>0?Math.round((passCount/t.slots)*100):0;
+      const pctEquil=t.slots>0?Math.round((puntoCero/t.slots)*100):0;
+      const colorEst=utilidadEst>=0?'var(--success)':'var(--danger)';
+      const colorReal=utilidadReal>=0?'var(--success)':'var(--danger)';
+      const pctCobrado=costoTotal>0?Math.min(100,Math.round((cobrado/costoTotal)*100)):100;
+      const pctNeedle=ingresoEstimado>0?Math.min(98,Math.round((costoTotal/ingresoEstimado)*100)):50;
+      const barEquil='<div style="background:var(--border);border-radius:4px;height:8px;position:relative;margin:6px 0 2px;"><div style="position:absolute;left:0;top:0;height:8px;border-radius:4px;background:'+(cobrado>=costoTotal?'var(--success)':'var(--warning)')+';width:'+pctCobrado+'%;transition:.3s;"></div><div style="position:absolute;left:'+pctNeedle+'%;top:-4px;width:2px;height:16px;background:var(--danger);border-radius:2px;" title="Punto de equilibrio: '+fmt(costoTotal)+'"></div></div><div style="display:flex;justify-content:space-between;font-size:10px;color:var(--text3);"><span>$0</span><span style="color:var(--danger);">Equilibrio '+fmt(costoTotal)+'</span><span>'+fmt(ingresoEstimado)+'</span></div>';
+      const desglose=[['Transporte',b.transporte],['Hospedaje',b.hospedaje],['Alimentación',b.alimentacion],['Guías/Staff',b.guias],['Seguros/Permisos',b.seguros],['Imprevistos/Otros',b.otros]].filter(([,v])=>(parseFloat(v)||0)>0).map(([k,v])=>'<div style="font-size:11px;display:flex;justify-content:space-between;padding:3px 0;border-bottom:1px solid var(--border);"><span style="color:var(--text3);">'+k+'</span><span>'+fmt(parseFloat(v)||0)+'</span></div>').join('');
+      return '<div style="background:var(--surface2);border-radius:var(--radius);padding:12px;margin-bottom:12px;"><div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.8px;color:var(--text3);margin-bottom:10px;">💰 Análisis financiero</div><div class=\"grid grid-2\" style="gap:8px;margin-bottom:10px;"><div style="background:var(--surface);border-radius:8px;padding:10px;"><div style="font-size:10px;color:var(--text3);">Presupuesto total</div><div style="font-size:16px;font-weight:700;color:var(--danger);">'+fmt(costoTotal)+'</div><div style="font-size:10px;color:var(--text3);">Costo/pax: '+fmt(parseFloat(costoPax))+'</div></div><div style="background:var(--surface);border-radius:8px;padding:10px;"><div style="font-size:10px;color:var(--text3);">Cobrado real</div><div style="font-size:16px;font-weight:700;color:var(--primary);">'+fmt(cobrado)+'</div><div style="font-size:10px;color:var(--text3);">'+passCount+' de '+t.slots+' inscritos ('+pctInscr+'%)</div></div><div style="background:var(--surface);border-radius:8px;padding:10px;"><div style="font-size:10px;color:var(--text3);">Utilidad estimada (lleno)</div><div style="font-size:16px;font-weight:700;color:'+colorEst+';">'+fmt(utilidadEst)+'</div></div><div style="background:var(--surface);border-radius:8px;padding:10px;"><div style="font-size:10px;color:var(--text3);">Utilidad actual</div><div style="font-size:16px;font-weight:700;color:'+colorReal+';">'+fmt(utilidadReal)+'</div></div></div><div style="font-size:11px;margin-bottom:4px;"><strong>Punto de equilibrio:</strong> '+puntoCero+' de '+t.slots+' pax — necesitas cobrar <strong>'+fmt(costoTotal)+'</strong></div>'+barEquil+(cobrado<costoTotal?'<div style="margin-top:8px;font-size:11px;color:var(--warning);">⚠️ Faltan <strong>'+fmt(costoTotal-cobrado)+'</strong> para cubrir el costo.</div>':'<div style="margin-top:8px;font-size:11px;color:var(--success);">✅ Superó el punto de equilibrio.</div>')+(desglose?'<details style="margin-top:8px;"><summary style="font-size:11px;color:var(--text3);cursor:pointer;">Ver desglose del presupuesto</summary><div style="margin-top:6px;">'+desglose+'</div></details>':'')+'</div>';
+    })()}
     ${passengerHTML}
     ${cfg.clabe?`<div class="alert alert-info" style="margin-top:8px;">💳 Cuenta: <strong>${esc(cfg.clabe)}</strong></div>`:''}
     <div class="modal-footer">
@@ -1611,6 +1722,34 @@ function renderGraficas(){
       options:{indexAxis:'y',responsive:true,plugins:{legend:{display:false}},scales:{x:{beginAtZero:true,ticks:{callback:v=>'$'+v}}}}
     });
     document.getElementById('analisisClientes').innerHTML=`📌 <strong>Cliente VIP:</strong> ${cliKeys[0]} (${fmt(cliVals[0])})<br>💡 Los clientes recurrentes son tu activo más valioso — considera un programa de lealtad.`;
+  }
+
+  // 7. Rentabilidad por viaje (presupuesto vs cobrado real)
+  showCanvas('chartRentabilidad');destroyChart('chartRentabilidad');
+  const viajeBudget=db.trips.filter(t=>{
+    const b=t.budget||{};
+    return Object.values(b).some(v=>(parseFloat(v)||0)>0);
+  }).map(t=>{
+    const b=t.budget||{};
+    const costoTotal=Object.values(b).reduce((a,v)=>a+(parseFloat(v)||0),0);
+    const cobradoTotal=db.sales.filter(s=>s.items?.some(i=>i.type==='viaje'&&i.id===t.id)).reduce((a,s)=>a+(s.paid||0),0);
+    const utilidad=cobradoTotal-costoTotal;
+    const ingresoEstimado=parseFloat(t.price||0)*parseInt(t.slots||0);
+    return{name:t.codigo?`${t.name} (${t.codigo})`:t.name,costo:costoTotal,cobrado:cobradoTotal,utilidad,ingresoEst:ingresoEstimado,margen:ingresoEstimado>0?((utilidad/ingresoEstimado)*100).toFixed(1):0};
+  }).sort((a,b)=>b.utilidad-a.utilidad).slice(0,8);
+  if(!viajeBudget.length){showEmpty('chartRentabilidad','analisisRentabilidad','Sin viajes con presupuesto registrado.');}else{
+    const rentLabels=viajeBudget.map(v=>v.name);
+    grafCharts['chartRentabilidad']=new Chart(document.getElementById('chartRentabilidad'),{
+      type:'bar',
+      data:{labels:rentLabels,datasets:[
+        {label:'Presupuesto',data:viajeBudget.map(v=>v.costo),backgroundColor:'#c0392b55',borderColor:'#c0392b',borderWidth:2,borderRadius:4},
+        {label:'Cobrado',data:viajeBudget.map(v=>v.cobrado),backgroundColor:'#378ADD99',borderColor:'#378ADD',borderWidth:2,borderRadius:4},
+        {label:'Utilidad',data:viajeBudget.map(v=>v.utilidad),backgroundColor:viajeBudget.map(v=>v.utilidad>=0?'#27ae6099':'#c0392b99'),borderColor:viajeBudget.map(v=>v.utilidad>=0?'#27ae60':'#c0392b'),borderWidth:2}
+      ]},
+      options:{responsive:true,plugins:{legend:{position:'bottom',labels:{font:{size:11}}}},scales:{y:{beginAtZero:true,ticks:{callback:v=>'$'+v}}}}
+    });
+    const mejor=viajeBudget[0];const enRojo=viajeBudget.filter(v=>v.utilidad<0);
+    document.getElementById('analisisRentabilidad').innerHTML=`📌 <strong>Viaje más rentable:</strong> ${mejor.name} · Utilidad: ${fmt(mejor.utilidad)} (${mejor.margen}% margen)${enRojo.length?`<br>⚠️ <strong>${enRojo.length} viaje${enRojo.length>1?'s':''} en números rojos</strong> — revisa precios o reduce costos.`:'<br>✅ Todos los viajes con presupuesto son rentables.'}`;
   }
 }
 
